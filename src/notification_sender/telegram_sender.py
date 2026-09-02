@@ -94,7 +94,7 @@ class TelegramSender:
 
             if len(telegram_content) <= max_length:
                 # 单条消息发送
-                return self._send_telegram_message(
+                text_ok = self._send_telegram_message(
                     api_url,
                     chat_id,
                     sanitized_content,
@@ -103,7 +103,7 @@ class TelegramSender:
                 )
             else:
                 # 按 Markdown 转义后的最终 payload 分段，避免转义字符使请求超限
-                return self._send_telegram_chunked(
+                text_ok = self._send_telegram_chunked(
                     api_url,
                     chat_id,
                     telegram_content,
@@ -111,6 +111,12 @@ class TelegramSender:
                     message_thread_id,
                     timeout_seconds=timeout_seconds,
                 )
+            # 额外以 .md 文件形式发送（text + file 双推送）
+            try:
+                self._send_telegram_document(sanitized_content)
+            except Exception as doc_exc:
+                logger.debug(f"Telegram 文档发送跳过: {doc_exc}")
+            return text_ok
 
         except Exception as e:
             logger.error(f"发送 Telegram 消息失败: {e}")
@@ -362,6 +368,29 @@ class TelegramSender:
             return False
         except Exception as e:
             logger.error("Telegram 图片发送异常: %s", e)
+            return False
+
+    def _send_telegram_document(self, content: str, filename: str = "report.md") -> bool:
+        """Send Markdown content as .md file via Telegram sendDocument."""
+        if not self._is_telegram_configured():
+            return False
+        bot_token = self._telegram_config['bot_token']
+        chat_id = self._telegram_config['chat_id']
+        message_thread_id = self._telegram_config.get('message_thread_id')
+        api_url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
+        try:
+            data = {"chat_id": chat_id}
+            if message_thread_id:
+                data['message_thread_id'] = message_thread_id
+            files = {"document": (filename, content.encode('utf-8'), "text/markdown")}
+            response = requests.post(api_url, data=data, files=files, timeout=30)
+            if response.status_code == 200 and response.json().get('ok'):
+                logger.info("Telegram 文档发送成功: %s", filename)
+                return True
+            logger.warning("Telegram 文档发送失败: %s", response.text[:300])
+            return False
+        except Exception as e:
+            logger.warning("Telegram 文档发送异常: %s", e)
             return False
 
     def _convert_to_telegram_markdown(self, text: str) -> str:
