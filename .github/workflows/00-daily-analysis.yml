@@ -535,6 +535,50 @@ jobs:
             python main.py $FORCE_RUN_ARG
           fi
       
+      - name: 获取上游仓库的最新交付报告（A）
+        if: always()
+        run: |
+          set -e
+          UPSTREAM_DIR="reports/upstream_CN"
+          mkdir -p "$UPSTREAM_DIR"
+          # 获取上游 ZhuLinsen/daily_stock_analysis 最新一次成功 run 的 artifact（analysis-reports-*）
+          RUN_INFO=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/ZhuLinsen/daily_stock_analysis/actions/runs?per_page=1&status=success")
+          ARTIFACT_ID=$(echo "$RUN_INFO" | python -c "import json,sys,re
+r=json.load(sys.stdin)['workflow_runs'][0]
+import urllib.request, json as j
+art=json.loads(urllib.request.urlopen(urllib.request.Request(
+  f"https://api.github.com/repos/ZhuLinsen/daily_stock_analysis/actions/runs/{r['id']}/artifacts",
+  headers={'Authorization':'Bearer ${{ secrets.GITHUB_TOKEN }}','Accept':'application/vnd.github+json'})).read())
+for a in art['artifacts']:
+  if a['name'].startswith('analysis-reports-'):
+    print(a['id']); break")
+          if [ -z "$ARTIFACT_ID" ]; then
+            echo "未获取到上游 artifact_id，跳过"
+            exit 0
+          fi
+          echo "上游 artifact_id=$ARTIFACT_ID，开始下载"
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -L \
+            -o /tmp/upstream.zip \
+            "https://api.github.com/repos/ZhuLinsen/daily_stock_analysis/actions/artifacts/$ARTIFACT_ID/zip"
+          unzip -o /tmp/upstream.zip -d "$UPSTREAM_DIR" >/dev/null
+          TODAY=$(TZ='Asia/Shanghai' date '+%Y%m%d')
+          for f in "$UPSTREAM_DIR"/*.md; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            if [[ "$base" == *CN* ]] || [[ "$base" == *cn* ]]; then
+              continue
+            fi
+            new_name="$UPSTREAM_DIR/report_CN_${TODAY}_${base}"
+            mv "$f" "$new_name"
+            echo "改名: $base -> report_CN_${TODAY}_${base}"
+          done
+          echo "上游交付报告已合入 $UPSTREAM_DIR"
+
       - name: 上传分析报告
         uses: actions/upload-artifact@v6
         if: always()

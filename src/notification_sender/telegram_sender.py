@@ -90,33 +90,12 @@ class TelegramSender:
                 logger.warning("Telegram 消息内容为空，跳过推送")
                 return False
 
-            telegram_content = self._convert_to_telegram_markdown(sanitized_content)
-
-            if len(telegram_content) <= max_length:
-                # 单条消息发送
-                text_ok = self._send_telegram_message(
-                    api_url,
-                    chat_id,
-                    sanitized_content,
-                    message_thread_id,
-                    timeout_seconds=timeout_seconds,
-                )
-            else:
-                # 按 Markdown 转义后的最终 payload 分段，避免转义字符使请求超限
-                text_ok = self._send_telegram_chunked(
-                    api_url,
-                    chat_id,
-                    telegram_content,
-                    max_length,
-                    message_thread_id,
-                    timeout_seconds=timeout_seconds,
-                )
-            # 额外以 .md 文件形式发送（text + file 双推送）
+            # 仅以 .md 文件形式发送（不再发送 text 消息）
             try:
-                self._send_telegram_document(sanitized_content)
+                return self._send_telegram_document(sanitized_content)
             except Exception as doc_exc:
-                logger.debug(f"Telegram 文档发送跳过: {doc_exc}")
-            return text_ok
+                logger.warning(f"Telegram 文档发送失败，跳过: {doc_exc}")
+                return False
 
         except Exception as e:
             logger.error(f"发送 Telegram 消息失败: {e}")
