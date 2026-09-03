@@ -571,6 +571,25 @@ jobs:
           echo "upstream reports copied to reports/" 
           echo "上游交付报告已合入 $UPSTREAM_DIR"
 
+      - name: 推送上游 CN 报告到 Telegram
+        if: always()
+        run: |
+          set -e
+          shopt -s nullglob
+          files=(reports/upstream_CN/*.md)
+          if [ \${#files[@]} -eq 0 ]; then
+            echo "无上游 CN 报告，跳过推送"
+            exit 0
+          fi
+          for f in reports/upstream_CN/*.md; do
+            [ -f "$f" ] || continue
+            echo "推送上游 CN 报告: $f"
+            curl -fsSL -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+              -F "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -F "document=@$f;type=text/markdown" \
+              -F "caption=上游 CN 报告 — $(basename "$f")" || echo "Telegram 上游推送失败: $f"
+          done
+
       - name: 上传分析报告
         uses: actions/upload-artifact@v6
         if: always()
