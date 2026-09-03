@@ -546,15 +546,8 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/ZhuLinsen/daily_stock_analysis/actions/runs?per_page=1&status=success")
-          ARTIFACT_ID=$(echo "$RUN_INFO" | python -c "import json,sys,re
-r=json.load(sys.stdin)['workflow_runs'][0]
-import urllib.request, json as j
-art=json.loads(urllib.request.urlopen(urllib.request.Request(
-  f"https://api.github.com/repos/ZhuLinsen/daily_stock_analysis/actions/runs/{r['id']}/artifacts",
-  headers={'Authorization':'Bearer ${{ secrets.GITHUB_TOKEN }}','Accept':'application/vnd.github+json'})).read())
-for a in art['artifacts']:
-  if a['name'].startswith('analysis-reports-'):
-    print(a['id']); break")
+          echo "$RUN_INFO" > /tmp/run_info.json
+          ARTIFACT_ID=$(GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" python -c "import json,urllib.request,os; info=json.load(open('/tmp/run_info.json')); rid=info['workflow_runs'][0]['id']; tok=os.environ.get('GITHUB_TOKEN',''); req=urllib.request.Request(f'https://api.github.com/repos/ZhuLinsen/daily_stock_analysis/actions/runs/{rid}/artifacts', headers={'Authorization':f'Bearer {tok}','Accept':'application/vnd.github+json'}); art=json.loads(urllib.request.urlopen(req).read()); print(next((str(a['id']) for a in art.get('artifacts',[]) if a.get('name','').startswith('analysis-reports-')),''))")
           if [ -z "$ARTIFACT_ID" ]; then
             echo "未获取到上游 artifact_id，跳过"
             exit 0
