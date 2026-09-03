@@ -563,13 +563,12 @@ jobs:
           for f in "$UPSTREAM_DIR"/*.md; do
             [ -f "$f" ] || continue
             base=$(basename "$f")
-            if [[ "$base" == *CN* ]] || [[ "$base" == *cn* ]]; then
-              continue
-            fi
             new_name="$UPSTREAM_DIR/report_CN_${TODAY}_${base}"
             mv "$f" "$new_name"
             echo "改名: $base -> report_CN_${TODAY}_${base}"
           done
+          cp -v "$UPSTREAM_DIR"/*.md reports/ 2>/dev/null || echo "nothing to copy"
+          echo "upstream reports copied to reports/" 
           echo "上游交付报告已合入 $UPSTREAM_DIR"
 
       - name: 上传分析报告
